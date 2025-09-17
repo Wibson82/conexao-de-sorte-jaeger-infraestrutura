@@ -1,0 +1,70 @@
+---
+# ============================================================================
+# 📊 CONEXÃO DE SORTE - JAEGER INFRAESTRUTURA
+# ============================================================================
+# Data de Criação: 17/09/2025 às 04:30 BRT
+# Última Atualização: 17/09/2025 às 04:30 BRT
+# Responsável: Sistema Automatizado
+# Versão: 1.0.0
+# ============================================================================
+#
+# JAEGER STANDALONE - Distributed Tracing
+# - Docker Swarm deployment
+# - Overlay encrypted network para segurança
+# - Health checks otimizados para produção
+# - All-in-one deployment para simplicidade
+# ============================================================================
+
+services:
+  # ============================================================================
+  # 📊 JAEGER - Distributed Tracing
+  # ============================================================================
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    hostname: conexao-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      MEMORY_MAX_TRACES: 5000
+      JAEGER_DISABLED: "false"
+      COLLECTOR_ZIPKIN_HOST_PORT: ":9411"
+      QUERY_BASE_PATH: "/jaeger"
+    networks:
+      conexao-network-swarm:
+        aliases:
+          - conexao-jaeger
+          - jaeger
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # Jaeger Collector HTTP
+      - "14269:14269"  # Jaeger Collector gRPC
+      - "9411:9411"    # Zipkin compatible endpoint
+    healthcheck:
+      test: >
+        ["CMD", "sh", "-c", "wget --quiet --tries=1 --timeout=5 --spider http://localhost:16686 || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 120s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 5
+        window: 300s
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+# ============================================================================
+# 🌐 NETWORKS EXTERNOS
+# ============================================================================
+networks:
+  conexao-network-swarm:
+    external: true
+    name: conexao-network-swarm
