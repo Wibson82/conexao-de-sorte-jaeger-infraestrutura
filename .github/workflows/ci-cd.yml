@@ -7,19 +7,55 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  SERVICE_NAME: jaeger-infrastructure
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+  actions: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  validate-and-build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  inventory-and-validate:
+    name: "🔍 Inventário e validação"
+    runs-on: [ self-hosted, Linux, X64, conexao, infra, conexao-de-sorte-jaeger-infraestrutura ]
+    timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4.3.0
+      - name: Checkout
+        uses: actions/checkout@v4.3.0
+        with:
+          fetch-depth: 1
+          clean: true
+
+      - name: "🔐 Login Azure via OIDC"
+        if: >-
+          ${{ vars.AZURE_CLIENT_ID != '' && vars.AZURE_TENANT_ID != '' &&
+              vars.AZURE_SUBSCRIPTION_ID != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "📋 Validar inventário de segredos"
+        shell: bash
+        env:
+          SERVICE_NAME: jaeger-infrastructure
+          KEYVAULT_NAME: ${{ vars.AZURE_KEYVAULT_NAME }}
+        run: |
+          set -euo pipefail
+          echo "Inventário verificado: serviço ${SERVICE_NAME} não requer segredos adicionais neste estágio."
+          if [[ -n "${KEYVAULT_NAME:-}" ]]; then
+            {
+              echo "### Inventário de Segredos"
+              echo ""
+              echo "- Serviço: ${SERVICE_NAME}"
+              echo "- Key Vault alvo: ${KEYVAULT_NAME}"
+              echo "- Segredos consumidos neste job: nenhum"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Install dependencies
         run: |
@@ -28,13 +64,11 @@ jobs:
 
       - name: Validate Docker Compose
         run: |
-          # Validar sintaxe do docker-compose.yml
           docker compose -f docker-compose.yml config -q
           echo "✅ Docker Compose syntax is valid"
 
       - name: Security Validation
         run: |
-          # Verificar se não há hardcoded passwords
           if grep -r "password.*:" docker-compose.yml | grep -v "\${" | grep -v "#" | grep -v "external:"; then
             echo "❌ Found potential hardcoded passwords"
             exit 1
@@ -45,59 +79,97 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4.5.0
         with:
-          name: jaeger-configs
-          path: |
-            docker-compose.yml
+          name: jaeger-configs-${{ github.run_id }}
+          path: docker-compose.yml
 
   deploy-selfhosted:
-    needs: validate-and-build
-    runs-on: [ self-hosted, Linux, X64, conexao, conexao-de-sorte-jaeger-infraestrutura ]
-    timeout-minutes: 15
+    name: "🚀 Deploy Jaeger"
+    needs: inventory-and-validate
     if: github.ref == 'refs/heads/main'
+    runs-on: [ self-hosted, Linux, X64, conexao, infra, conexao-de-sorte-jaeger-infraestrutura ]
+    timeout-minutes: 15
     env:
       DOCKER_NETWORK_NAME: conexao-network-swarm
       STACK_NAME: conexao-jaeger
       COMPOSE_FILE: docker-compose.yml
     steps:
-      - uses: actions/checkout@v4.3.0
+      - name: Checkout
+        uses: actions/checkout@v4.3.0
         with:
           clean: true
           fetch-depth: 1
 
+      - name: "🔐 Login Azure via OIDC"
+        if: >-
+          ${{ vars.AZURE_CLIENT_ID != '' && vars.AZURE_TENANT_ID != '' &&
+              vars.AZURE_SUBSCRIPTION_ID != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "🔑 Carregar segredos necessários do Key Vault"
+        if: vars.AZURE_KEYVAULT_NAME != ''
+        env:
+          KEYVAULT_NAME: ${{ vars.AZURE_KEYVAULT_NAME }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_secrets=()
+          if [[ "${#required_secrets[@]}" -eq 0 ]]; then
+            echo "Nenhum segredo do Key Vault é necessário para este deploy."
+            exit 0
+          fi
+
+          for secret in "${required_secrets[@]}"; do
+            value=$(az keyvault secret show --vault-name "$KEYVAULT_NAME" --name "$secret" --query value -o tsv)
+            file_path="$RUNNER_TEMP/$secret"
+            printf '%s' "$value" > "$file_path"
+            chmod 600 "$file_path"
+
+            case "$secret" in
+              swarm-admin-ssh-key)
+                echo "SWARM_ADMIN_SSH_KEY_PATH=$file_path" >> "$GITHUB_ENV"
+                ;;
+              *)
+                masked_var=$(echo "$secret" | tr '[:lower:]-' '[:upper:]_')
+                echo "${masked_var}_PATH=$file_path" >> "$GITHUB_ENV"
+                ;;
+            esac
+          done
+
       - name: Download artifacts
         uses: actions/download-artifact@v4.1.8
         with:
-          name: jaeger-configs
+          name: jaeger-configs-${{ github.run_id }}
           path: .
 
-      - name: 🚀 Deploy Jaeger Stack (Swarm-Only)
+      - name: "🚀 Deploy Jaeger Stack (Swarm-Only)"
         env:
-          STACK_NAME: conexao-jaeger
-          COMPOSE_FILE: docker-compose.yml
+          STACK_NAME: ${{ env.STACK_NAME }}
+          COMPOSE_FILE: ${{ env.COMPOSE_FILE }}
         run: |
           echo "🚀 Iniciando deploy do Jaeger com Docker Swarm..."
 
-          # Remover stack existente se houver
           if docker stack ls | grep -q "$STACK_NAME"; then
             echo "🔄 Removendo stack existente '$STACK_NAME'..."
             docker stack rm "$STACK_NAME"
             sleep 8
           fi
 
-          # Deploy da nova stack
           echo "🏗️ Executando deploy da stack '$STACK_NAME'..."
           docker stack deploy -c "$COMPOSE_FILE" "$STACK_NAME"
 
           echo "⏰ Aguardando estabilização dos serviços Jaeger..."
-          sleep 35  # Jaeger inicialização otimizada
+          sleep 35
 
       - name: Healthcheck Jaeger (Via Logs)
         env:
-          STACK_NAME: conexao-jaeger
+          STACK_NAME: ${{ env.STACK_NAME }}
         run: |
           echo "🔍 Validando saúde do Jaeger com health checks robustos..."
 
-          # Aguardar até 3.3 minutos para Jaeger ficar disponível
           timeout=200
           elapsed=0
           health_passed=false
@@ -108,21 +180,18 @@ jobs:
             if [ -n "$JAEGER_CONTAINER" ]; then
               echo "🔍 Testando health check do Jaeger... ($elapsed/$timeout segundos)"
 
-              # Método 1: Verificar logs para "Query server started" ou "Jaeger started"
               if docker logs "$JAEGER_CONTAINER" 2>/dev/null | grep -q "Query server started\|Jaeger.*started\|server started.*jaeger"; then
                 echo "✅ Jaeger health check passed (logs validation)"
                 health_passed=true
                 break
               fi
 
-              # Método 2: Verificar se porta 16686 está ativa
               if docker exec "$JAEGER_CONTAINER" ss -tuln 2>/dev/null | grep -q ":16686 "; then
                 echo "✅ Jaeger health check passed (port 16686 active)"
                 health_passed=true
                 break
               fi
 
-              # Método 3: Fallback wget se disponível
               if docker exec "$JAEGER_CONTAINER" which wget >/dev/null 2>&1; then
                 if docker exec "$JAEGER_CONTAINER" wget --quiet --tries=1 --timeout=3 --spider http://localhost:16686 2>/dev/null; then
                   echo "✅ Jaeger health check passed (wget validation)"
@@ -131,7 +200,6 @@ jobs:
                 fi
               fi
 
-              # Método 4: Verificar processo rodando
               if docker exec "$JAEGER_CONTAINER" ps aux 2>/dev/null | grep -q "[j]aeger\|[q]uery"; then
                 echo "✅ Jaeger health check passed (process validation)"
                 health_passed=true
@@ -164,11 +232,11 @@ jobs:
 
       - name: Connectivity Validation
         env:
-          STACK_NAME: conexao-jaeger
+          STACK_NAME: ${{ env.STACK_NAME }}
+          DOCKER_NETWORK_NAME: ${{ env.DOCKER_NETWORK_NAME }}
         run: |
           echo "🔗 Validando conectividade do Jaeger..."
 
-          # Verificar se o serviço está listado no Swarm
           if docker service ls | grep -q "${STACK_NAME}_jaeger"; then
             echo "✅ Serviço Jaeger encontrado no Swarm"
           else
@@ -176,17 +244,14 @@ jobs:
             exit 1
           fi
 
-          # Verificar se está na rede correta
-          if docker network inspect conexao-network-swarm | grep -q jaeger; then
+          if docker network inspect "$DOCKER_NETWORK_NAME" | grep -q jaeger; then
             echo "✅ Jaeger conectado à rede overlay"
           else
             echo "⚠️ Jaeger pode não estar na rede overlay correta"
           fi
 
-          # Testar endpoints adicionais (soft check)
           JAEGER_CONTAINER=$(docker ps -q -f name="${STACK_NAME}_jaeger" | head -1)
           if [ -n "$JAEGER_CONTAINER" ]; then
-            # Testar endpoint Zipkin compatível (via porta)
             if docker exec "$JAEGER_CONTAINER" ss -tuln 2>/dev/null | grep -q ":9411 "; then
               echo "✅ Jaeger Zipkin endpoint ativo (porta 9411)"
             else
@@ -196,3 +261,206 @@ jobs:
 
           echo "📊 Status final dos serviços:"
           docker service ls --filter name="${STACK_NAME}_*" --format "table {{.Name}}\t{{.Replicas}}\t{{.Image}}"
+
+  ghcr-maintenance:
+    name: "🧹 GHCR maintenance"
+    needs: deploy-selfhosted
+    if: github.ref == 'refs/heads/main'
+    runs-on: [ self-hosted, Linux, X64, conexao, infra, conexao-de-sorte-jaeger-infraestrutura ]
+    timeout-minutes: 10
+    steps:
+      - name: "🧹 Limpeza inteligente do GHCR"
+        shell: bash
+        env:
+          SERVICE_NAME: jaeger-infrastructure
+          MAX_VERSIONS_TO_KEEP: ${{ vars.MAX_VERSIONS_TO_KEEP || 3 }}
+          MAX_AGE_DAYS: ${{ vars.MAX_AGE_DAYS || 7 }}
+          PROTECTED_TAGS: ${{ vars.PROTECTED_TAGS || 'latest,main,production' }}
+          GHCR_CLEANUP_EXECUTE: ${{ vars.GHCR_CLEANUP_EXECUTE || 'true' }}
+        run: |
+          set -euo pipefail
+          : "${GITHUB_TOKEN:?GITHUB_TOKEN não disponível para GHCR cleanup}"
+
+          owner="${GITHUB_REPOSITORY_OWNER}"
+          repo_name="${GITHUB_REPOSITORY#*/}"
+          default_package=$(echo "$repo_name" | tr '[:upper:]' '[:lower:]')
+          service_slug=$(echo "${SERVICE_NAME:-$default_package}" | tr '[:upper:]' '[:lower:]')
+          service_slug=${service_slug// /-}
+          service_slug=${service_slug//_/-}
+
+          cleanup_ghcr_safe() {
+            local package_name="$1"
+            local execute_flag="${2:-true}"
+            local api="https://api.github.com"
+            local accept_header="Accept: application/vnd.github+json"
+            local auth_header="Authorization: Bearer ${GITHUB_TOKEN}"
+            local scope=""
+            local response_file
+            response_file="$(mktemp)"
+
+            if curl -fsS -H "$accept_header" -H "$auth_header" \
+                "$api/orgs/${owner}/packages/container/${package_name}/versions?per_page=100" \
+                -o "$response_file"; then
+              scope="orgs/${owner}"
+            elif curl -fsS -H "$accept_header" -H "$auth_header" \
+                "$api/users/${owner}/packages/container/${package_name}/versions?per_page=100" \
+                -o "$response_file"; then
+              scope="users/${owner}"
+            else
+              echo "⚠️ Nenhuma imagem GHCR localizada para ${owner}/${package_name}."
+              rm -f "$response_file"
+              return 0
+            fi
+
+            local plan_file
+            plan_file="$(mktemp)"
+            trap 'rm -f "$response_file" "$plan_file"' RETURN
+
+            SUMMARY_LOG=$(GHCR_RESPONSE="$response_file" PLAN_FILE="$plan_file" \
+              MAX_VERSIONS_TO_KEEP="$MAX_VERSIONS_TO_KEEP" MAX_AGE_DAYS="$MAX_AGE_DAYS" \
+              PROTECTED_TAGS="$PROTECTED_TAGS" python3 - <<'PY'
+import json, os, sys, datetime
+from datetime import datetime, timezone
+
+response_path = os.environ["GHCR_RESPONSE"]
+plan_path = os.environ["PLAN_FILE"]
+max_versions = int(os.environ.get("MAX_VERSIONS_TO_KEEP") or 3)
+max_age_days = int(os.environ.get("MAX_AGE_DAYS") or 7)
+protected_raw = os.environ.get("PROTECTED_TAGS", "")
+protected_tags = {tag.strip().lower() for tag in protected_raw.split(',') if tag.strip()}
+
+with open(response_path, 'r', encoding='utf-8') as handle:
+    try:
+        data = json.load(handle)
+    except json.JSONDecodeError:
+        print("Falha ao decodificar resposta do GHCR", file=sys.stderr)
+        json.dump({"delete": [], "summary": {"total": 0}}, open(plan_path, 'w', encoding='utf-8'))
+        sys.exit(0)
+
+if isinstance(data, dict):
+    versions = data.get("versions", [])
+else:
+    versions = data
+
+versions = [v for v in versions if isinstance(v, dict)]
+versions.sort(key=lambda v: (v.get("updated_at") or v.get("created_at") or ""), reverse=True)
+
+now = datetime.now(timezone.utc)
+keep = []
+eligible = []
+
+for idx, version in enumerate(versions):
+    metadata = (version.get("metadata") or {}).get("container") or {}
+    tags = [t for t in (metadata.get("tags") or []) if t]
+    tag_set = {t.lower() for t in tags}
+    updated_raw = version.get("updated_at") or version.get("created_at")
+    if updated_raw:
+        updated = datetime.fromisoformat(updated_raw.replace("Z", "+00:00"))
+        age_days = max(0, (now - updated).days)
+    else:
+        age_days = 0
+    info = {
+        "id": version.get("id"),
+        "name": version.get("name"),
+        "tags": tags,
+        "age_days": age_days,
+        "size_bytes": int((metadata.get("image_size") or 0)),
+    }
+    keep_slot = idx < max_versions
+    is_protected = bool(tag_set & protected_tags)
+    old_enough = age_days >= max_age_days
+    if keep_slot or is_protected or not old_enough:
+        keep.append(info)
+    else:
+        eligible.append(info)
+
+summary = {
+    "total": len(versions),
+    "kept": len(keep),
+    "eligible": len(eligible),
+    "max_versions_to_keep": max_versions,
+    "max_age_days": max_age_days,
+    "protected_tags": sorted(protected_tags),
+    "space_reclaimable": sum(item["size_bytes"] for item in eligible),
+}
+
+with open(plan_path, 'w', encoding='utf-8') as handle:
+    json.dump({"delete": eligible, "summary": summary}, handle, indent=2)
+
+space_mb = summary["space_reclaimable"] / (1024 * 1024) if summary["space_reclaimable"] else 0
+lines = [
+    f"Total de versões: {summary['total']}",
+    f"Mantidas (recentes ou protegidas): {summary['kept']}",
+    f"Elegíveis à remoção: {summary['eligible']} (idade ≥ {max_age_days}d, mantendo {max_versions} versões)",
+    f"Espaço potencial a liberar: {space_mb:.2f} MB",
+]
+if eligible:
+    lines.append("Candidatas (limite 10):")
+    for item in eligible[:10]:
+        tags = ', '.join(item['tags']) if item['tags'] else '<untagged>'
+        size_mb_item = item['size_bytes'] / (1024 * 1024) if item['size_bytes'] else 0
+        lines.append(f"  - id={item['id']} | tags={tags} | idade={item['age_days']}d | tamanho≈{size_mb_item:.2f} MB")
+
+print('\n'.join(lines))
+PY
+            )
+
+            echo "${SUMMARY_LOG}"
+            {
+              echo "## GHCR Cleanup"
+              echo "$SUMMARY_LOG"
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            if [[ "$execute_flag" != "true" ]]; then
+              echo "Modo simulação habilitado; nenhuma exclusão executada."
+              return 0
+            fi
+
+            mapfile -t targets < <(PLAN_FILE="$plan_file" python3 - <<'PY'
+import json, os
+plan = json.load(open(os.environ["PLAN_FILE"], encoding='utf-8'))
+for item in plan.get("delete", []):
+    tags = ','.join(item.get("tags") or []) or '<untagged>'
+    size_bytes = item.get("size_bytes") or 0
+    print(f"{item['id']}|{item['age_days']}|{tags}|{size_bytes}")
+PY
+            )
+
+            if [[ "${#targets[@]}" -eq 0 ]]; then
+              echo "Nenhuma versão atende aos critérios de limpeza."
+              return 0
+            fi
+
+            local deleted_count=0
+            local reclaimed_bytes=0
+            for target in "${targets[@]}"; do
+              IFS='|' read -r version_id age_days tag_list size_bytes <<< "$target"
+              if [[ -z "$version_id" ]]; then
+                continue
+              fi
+              if curl -fsS -X DELETE -H "$accept_header" -H "$auth_header" \
+                  "$api/${scope}/packages/container/${package_name}/versions/${version_id}" >/dev/null; then
+                deleted_count=$((deleted_count + 1))
+                reclaimed_bytes=$((reclaimed_bytes + size_bytes))
+                echo "✅ Removida versão ${version_id} (idade=${age_days}d, tags=${tag_list})"
+              else
+                echo "⚠️ Falha ao remover versão ${version_id}" >&2
+              fi
+            done
+
+            local reclaimed_mb
+            reclaimed_mb=$(python3 - <<'PY'
+import os
+size = int(os.environ.get('RECLAIMED_BYTES', '0'))
+print(f"{size/1024/1024:.2f}")
+PY
+              RECLAIMED_BYTES="$reclaimed_bytes")
+
+            {
+              echo "### Exclusões realizadas"
+              echo "- Versões removidas: ${deleted_count}"
+              echo "- Espaço liberado (aprox.): ${reclaimed_mb} MB"
+            } >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          cleanup_ghcr_safe "$service_slug" "$GHCR_CLEANUP_EXECUTE"
