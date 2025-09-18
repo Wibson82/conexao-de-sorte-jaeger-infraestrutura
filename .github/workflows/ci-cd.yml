@@ -160,15 +160,15 @@ jobs:
             image_ref="$primary_tag"
           fi
           mkdir -p build
-          cat <<JSON > build/image-metadata.json
-{
-  "image_tag": "$primary_tag",
-  "image_ref": "$image_ref",
-  "digest": "$digest",
-  "cache_key": "${{ steps.cache_key.outputs.cache_key }}",
-  "build_created": "${{ steps.build_time.outputs.created }}"
-}
-JSON
+          cat <<'JSON' > build/image-metadata.json
+          {
+            "image_tag": "$primary_tag",
+            "image_ref": "$image_ref",
+            "digest": "$digest",
+            "cache_key": "${{ steps.cache_key.outputs.cache_key }}",
+            "build_created": "${{ steps.build_time.outputs.created }}"
+          }
+          JSON
           echo "image_tag=$primary_tag" >> "$GITHUB_OUTPUT"
           echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
           echo "metadata_path=build/image-metadata.json" >> "$GITHUB_OUTPUT"
