@@ -385,6 +385,35 @@ JSON
           echo "📊 Status final dos serviços:"
           docker service ls --filter name="${STACK_NAME}_*" --format "table {{.Name}}\t{{.Replicas}}\t{{.Image}}"
 
+      - name: "🧼 Limpeza de recursos no servidor"
+        if: success()
+        env:
+          STACK_NAME: ${{ env.STACK_NAME }}
+        run: |
+          set -euo pipefail
+          before_usage=$(mktemp)
+          after_usage=$(mktemp)
+          docker system df > "$before_usage"
+          echo "🧹 Removendo containers parados (≥12h)..."
+          docker container prune -f --filter "until=12h"
+          echo "🧹 Removendo imagens não utilizadas (≥7d)..."
+          docker image prune -f --filter "until=168h"
+          echo "🧹 Removendo caches de build antigos (≥7d)..."
+          docker builder prune -f --filter "until=168h" || true
+          docker system df > "$after_usage"
+          echo "📦 Uso de recursos após limpeza:"
+          cat "$after_usage"
+          {
+            echo "## Limpeza de recursos no servidor"
+            echo ""
+            echo "### Uso antes"
+            sed 's/^/    /' "$before_usage"
+            echo ""
+            echo "### Uso depois"
+            sed 's/^/    /' "$after_usage"
+          } >> "$GITHUB_STEP_SUMMARY"
+          rm -f "$before_usage" "$after_usage"
+
       - name: "🧹 Limpar artefatos temporários"
         if: always()
         env:
