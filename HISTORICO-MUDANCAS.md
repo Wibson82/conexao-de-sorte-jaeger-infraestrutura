@@ -1,5 +1,31 @@
 # 📋 HISTÓRICO DE MUDANÇAS - JAEGER INFRAESTRUTURA
 
+## 🗓️ **18/09/2025 - Harden CI/CD (OIDC + GHCR + Cache)**
+
+### ✅ **MUDANÇAS REALIZADAS**
+- **OIDC + Key Vault**: `azure/login@v2` habilitado em todos os jobs com escopo mínimo; nenhum segredo de aplicação baixado por padrão (`required_secrets=()` ).
+- **Imagem GHCR**: Build automatizado da imagem `ghcr.io/wibson82/jaeger-infrastructure` com multi-tag (`sha`, `latest`) e labels OCI; compose agora aceita `JAEGER_IMAGE` parametrizado.
+- **Cache Multi-nível**: Buildx com `hashFiles('Dockerfile','docker-compose.yml')` como chave, caches GHA/local e rotação automática (`/tmp/.buildx-cache`).
+- **Retenção de artefatos**: Upload com `retention-days: 1`, nome com `github.run_id` e limpeza pós-deploy via GitHub API.
+- **GHCR Cleanup**: Função `cleanup_ghcr_safe` com simulação, proteção de tags, filtros por idade/versões e relatório no step summary.
+- **Limpeza de recursos**: `docker container/image/builder prune` com filtros seguros e relatório de `docker system df` antes/depois.
+
+### 🛡️ **MELHORIAS DE SEGURANÇA**
+- Eliminação de credenciais estáticas (login GHCR com `GITHUB_TOKEN`).
+- Checklist de conformidade documentado (`docs/security/pipeline-checklist.md`).
+- Inventário de segredos atualizado com variáveis de limpeza opcionais.
+
+### ⚡ **MELHORIAS DE PERFORMANCE & COSTO**
+- Reaproveitamento de camadas de imagem entre execuções (Buildx cache GHA/local).
+- Redução prevista de GHCR (idade ≥ 7 dias e >3 versões) e de storage local no runner via prunes controlados.
+
+### 🧪 **TESTES / VALIDAÇÕES**
+- `docker compose config -q` (lint).
+- Health check multi-método Swarm após deploy.
+- Simulação de limpeza GHCR com relatório detalhado.
+- **Pendente**: validação manual em staging da nova imagem GHCR.
+
+---
 ## 🗓️ **18/09/2025 - Refatoração Health Checks Via Logs + Endpoints Robustos**
 
 ### ✅ **MUDANÇAS REALIZADAS**
