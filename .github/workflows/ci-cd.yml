@@ -23,10 +23,10 @@ jobs:
     runs-on: [ self-hosted, Linux, X64, conexao, infra, conexao-de-sorte-jaeger-infraestrutura ]
     timeout-minutes: 15
     outputs:
-      cache-key: ${{ steps.cache-key.outputs.cache-key }}
-      image-ref: ${{ steps.image-metadata.outputs.image-ref }}
-      image-tag: ${{ steps.image-metadata.outputs.image-tag }}
-      image-digest: ${{ steps.build-image.outputs.digest }}
+      cache_key: ${{ steps.cache_key.outputs.cache_key }}
+      image_ref: ${{ steps.image_metadata.outputs.image_ref }}
+      image_tag: ${{ steps.image_metadata.outputs.image_tag }}
+      image_digest: ${{ steps.build_image.outputs.digest }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4.3.0
@@ -82,12 +82,12 @@ jobs:
           fi
 
       - name: "🔧 Setup cache key"
-        id: cache-key
+        id: cache_key
         run: |
-          echo "cache-key=${{ hashFiles('Dockerfile', 'docker-compose.yml') }}" >> "$GITHUB_OUTPUT"
+          echo "cache_key=${{ hashFiles('Dockerfile', 'docker-compose.yml') }}" >> "$GITHUB_OUTPUT"
 
       - name: "🕒 Capturar timestamp de build"
-        id: build-time
+        id: build_time
         run: |
           echo "created=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
@@ -114,7 +114,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: "🏗️ Build com cache multi-nível"
-        id: build-image
+        id: build_image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -124,16 +124,16 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: |
-            type=gha,scope=${{ steps.cache-key.outputs.cache-key }}
+            type=gha,scope=${{ steps.cache_key.outputs.cache_key }}
             type=local,src=/tmp/.buildx-cache
           cache-to: |
-            type=gha,scope=${{ steps.cache-key.outputs.cache-key }},mode=max
+            type=gha,scope=${{ steps.cache_key.outputs.cache_key }},mode=max
             type=local,dest=/tmp/.buildx-cache-new,mode=max
           provenance: false
           build-args: |
             BUILD_SOURCE=https://github.com/${{ github.repository }}
             BUILD_REVISION=${{ github.sha }}
-            BUILD_CREATED=${{ steps.build-time.outputs.created }}
+            BUILD_CREATED=${{ steps.build_time.outputs.created }}
 
       - name: "♻️ Atualizar cache local Buildx"
         if: always()
@@ -144,12 +144,12 @@ jobs:
           fi
 
       - name: "📦 Registrar referência da imagem"
-        id: image-metadata
+        id: image_metadata
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           set -euo pipefail
-          digest="${{ steps.build-image.outputs.digest }}"
+          digest="${{ steps.build_image.outputs.digest }}"
           primary_tag=$(printf '%s\n' "$TAGS" | head -n1)
           if [[ -z "$primary_tag" ]]; then
             primary_tag="ghcr.io/${GITHUB_REPOSITORY_OWNER}/jaeger-infrastructure:${GITHUB_SHA}"
@@ -165,20 +165,20 @@ jobs:
   "image_tag": "$primary_tag",
   "image_ref": "$image_ref",
   "digest": "$digest",
-  "cache_key": "${{ steps.cache-key.outputs.cache-key }}",
-  "build_created": "${{ steps.build-time.outputs.created }}"
+  "cache_key": "${{ steps.cache_key.outputs.cache_key }}",
+  "build_created": "${{ steps.build_time.outputs.created }}"
 }
 JSON
-          echo "image-tag=$primary_tag" >> "$GITHUB_OUTPUT"
-          echo "image-ref=$image_ref" >> "$GITHUB_OUTPUT"
-          echo "metadata-path=build/image-metadata.json" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$primary_tag" >> "$GITHUB_OUTPUT"
+          echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
+          echo "metadata_path=build/image-metadata.json" >> "$GITHUB_OUTPUT"
           {
             echo "## Imagem construída"
             echo "- Tag principal: $primary_tag"
             if [[ -n "$digest" ]]; then
               echo "- Digest: $digest"
             fi
-            echo "- Chave de cache: ${{ steps.cache-key.outputs.cache-key }}"
+            echo "- Chave de cache: ${{ steps.cache_key.outputs.cache_key }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload artifacts
@@ -187,7 +187,7 @@ JSON
           name: jaeger-configs-${{ github.run_id }}
           path: |
             docker-compose.yml
-            ${{ steps.image-metadata.outputs.metadata-path }}
+            ${{ steps.image_metadata.outputs.metadata_path }}
           retention-days: 1
 
   deploy-selfhosted:
@@ -200,7 +200,7 @@ JSON
       DOCKER_NETWORK_NAME: conexao-network-swarm
       STACK_NAME: conexao-jaeger
       COMPOSE_FILE: docker-compose.yml
-      IMAGE_REFERENCE: ${{ needs.inventory-and-validate.outputs.image-ref }}
+      IMAGE_REFERENCE: ${{ needs['inventory-and-validate'].outputs.image_ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4.3.0
