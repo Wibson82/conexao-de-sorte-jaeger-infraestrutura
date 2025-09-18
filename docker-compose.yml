@@ -20,7 +20,7 @@ services:
   # 📊 JAEGER - Distributed Tracing
   # ============================================================================
   jaeger:
-    image: jaegertracing/all-in-one:1.60
+    image: ${JAEGER_IMAGE:-jaegertracing/all-in-one:1.60}
     hostname: conexao-jaeger
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
