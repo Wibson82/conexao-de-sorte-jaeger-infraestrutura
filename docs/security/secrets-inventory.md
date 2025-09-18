@@ -25,7 +25,7 @@
 ## Mapa de Uso nos Jobs
 | Job | Passo | Segredos/Variáveis | Observações |
 |-----|-------|--------------------|-------------|
-| `inventory-and-validate` | Checkout, validações, build de imagem | `AZURE_*` via OIDC, `GITHUB_TOKEN` para GHCR | Compila imagem `ghcr.io/<owner>/jaeger-infrastructure` com cache multi-nível (`hashFiles` de `Dockerfile` + `docker-compose.yml`).
+| `inventory-and-validate` | Checkout, validações, build de imagem | `AZURE_*` via OIDC, `GITHUB_TOKEN` para GHCR | Compila imagem `ghcr.io/wibson82/jaeger-infrastructure` com cache multi-nível (`hashFiles` de `Dockerfile` + `docker-compose.yml`).
 | `deploy-selfhosted` | Deploy Swarm + healthchecks | (nenhum segredo por padrão) | Usa `IMAGE_REFERENCE` vindo do job anterior; Key Vault só é consultado quando `required_secrets` for configurado explicitamente.
 | `ghcr-maintenance` | Limpeza GHCR | `MAX_*`, `PROTECTED_TAGS`, `GHCR_CLEANUP_EXECUTE` | Função `cleanup_ghcr_safe` protege tags críticas, respeita recência e gera relatório.
 
