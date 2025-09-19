@@ -78,16 +78,7 @@ jobs:
             echo 'python3 não está disponível no runner; instale manualmente.' >&2
             exit 1
           fi
-          python3 - <<'PY'
-import importlib
-import subprocess
-import sys
-
-try:
-    importlib.import_module('yaml')
-except ModuleNotFoundError:
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', 'PyYAML'])
-PY
+          python3 -c "import importlib, subprocess, sys\ntry:\n    importlib.import_module('yaml')\nexcept ModuleNotFoundError:\n    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', 'PyYAML'])"
 
       - name: Validate Docker Compose
         run: |
