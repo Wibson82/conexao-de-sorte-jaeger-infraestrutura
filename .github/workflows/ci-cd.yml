@@ -71,14 +71,15 @@ jobs:
             exit 1
           fi
           python3 - <<'PY'
-            import importlib
-            import sys
-            try:
-                importlib.import_module('yaml')
-            except ModuleNotFoundError:
-                import subprocess
-                subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', 'PyYAML'])
-          PY
+import importlib
+import subprocess
+import sys
+
+try:
+    importlib.import_module('yaml')
+except ModuleNotFoundError:
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', 'PyYAML'])
+PY
 
       - name: Validate Docker Compose
         run: |
@@ -439,15 +440,15 @@ jobs:
           response_file=$(mktemp)
           curl -fsS -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" "$api" -o "$response_file"
           mapfile -t artifact_ids < <(ARTIFACT_FILE="$response_file" TARGET_NAME="jaeger-configs-${RUN_ID}" python3 - <<'PY'
-            import json, os
-
-            with open(os.environ["ARTIFACT_FILE"], encoding="utf-8") as handle:
-                payload = json.load(handle)
-
-            target = os.environ["TARGET_NAME"]
-            for artifact in payload.get("artifacts", []):
-                if artifact.get("name") == target:
-                    print(str(artifact.get("id")))
+          import json, os
+          
+          with open(os.environ["ARTIFACT_FILE"], encoding="utf-8") as handle:
+          payload = json.load(handle)
+          
+          target = os.environ["TARGET_NAME"]
+          for artifact in payload.get("artifacts", []):
+          if artifact.get("name") == target:
+          print(str(artifact.get("id")))
           PY
           )
           rm -f "$response_file"
@@ -518,89 +519,89 @@ jobs:
             SUMMARY_LOG=$(GHCR_RESPONSE="$response_file" PLAN_FILE="$plan_file" \
               MAX_VERSIONS_TO_KEEP="$MAX_VERSIONS_TO_KEEP" MAX_AGE_DAYS="$MAX_AGE_DAYS" \
               PROTECTED_TAGS="$PROTECTED_TAGS" python3 - <<'PY'
-              import json, os, sys, datetime
-              from datetime import datetime, timezone
-
-              response_path = os.environ["GHCR_RESPONSE"]
-              plan_path = os.environ["PLAN_FILE"]
-              max_versions = int(os.environ.get("MAX_VERSIONS_TO_KEEP") or 3)
-              max_age_days = int(os.environ.get("MAX_AGE_DAYS") or 7)
-              protected_raw = os.environ.get("PROTECTED_TAGS", "")
-              protected_tags = {tag.strip().lower() for tag in protected_raw.split(',') if tag.strip()}
-
-              with open(response_path, 'r', encoding='utf-8') as handle:
-                try:
-                  data = json.load(handle)
-                except json.JSONDecodeError:
-                  print("Falha ao decodificar resposta do GHCR", file=sys.stderr)
-                  json.dump({"delete": [], "summary": {"total": 0}}, open(plan_path, 'w', encoding='utf-8'))
-                  sys.exit(0)
-
-              if isinstance(data, dict):
-                versions = data.get("versions", [])
-              else:
-                versions = data
-
-              versions = [v for v in versions if isinstance(v, dict)]
-              versions.sort(key=lambda v: (v.get("updated_at") or v.get("created_at") or ""), reverse=True)
-
-              now = datetime.now(timezone.utc)
-              keep = []
-              eligible = []
-
-              for idx, version in enumerate(versions):
-                metadata = (version.get("metadata") or {}).get("container") or {}
-                tags = [t for t in (metadata.get("tags") or []) if t]
-                tag_set = {t.lower() for t in tags}
-                updated_raw = version.get("updated_at") or version.get("created_at")
-                if updated_raw:
-                  updated = datetime.fromisoformat(updated_raw.replace("Z", "+00:00"))
-                  age_days = max(0, (now - updated).days)
-                else:
-                  age_days = 0
-                info = {
-                  "id": version.get("id"),
-                  "name": version.get("name"),
-                  "tags": tags,
-                  "age_days": age_days,
-                  "size_bytes": int((metadata.get("image_size") or 0)),
-                }
-                keep_slot = idx < max_versions
-                is_protected = bool(tag_set & protected_tags)
-                old_enough = age_days >= max_age_days
-                if keep_slot or is_protected or not old_enough:
-                  keep.append(info)
-                else:
-                  eligible.append(info)
-
-              summary = {
-                "total": len(versions),
-                "kept": len(keep),
-                "eligible": len(eligible),
-                "max_versions_to_keep": max_versions,
-                "max_age_days": max_age_days,
-                "protected_tags": sorted(protected_tags),
-                "space_reclaimable": sum(item["size_bytes"] for item in eligible),
-              }
-
-              with open(plan_path, 'w', encoding='utf-8') as handle:
-                json.dump({"delete": eligible, "summary": summary}, handle, indent=2)
-
-              space_mb = summary["space_reclaimable"] / (1024 * 1024) if summary["space_reclaimable"] else 0
-              lines = [
-                f"Total de versões: {summary['total']}",
-                f"Mantidas (recentes ou protegidas): {summary['kept']}",
-                f"Elegíveis à remoção: {summary['eligible']} (idade ≥ {max_age_days}d, mantendo {max_versions} versões)",
-                f"Espaço potencial a liberar: {space_mb:.2f} MB",
-              ]
-              if eligible:
-                lines.append("Candidatas (limite 10):")
-                for item in eligible[:10]:
-                  tags = ', '.join(item['tags']) if item['tags'] else '<untagged>'
-                  size_mb_item = item['size_bytes'] / (1024 * 1024) if item['size_bytes'] else 0
-                  lines.append(f"  - id={item['id']} | tags={tags} | idade={item['age_days']}d | tamanho≈{size_mb_item:.2f} MB")
-
-              print('\n'.join(lines))
+          import json, os, sys, datetime
+          from datetime import datetime, timezone
+          
+          response_path = os.environ["GHCR_RESPONSE"]
+          plan_path = os.environ["PLAN_FILE"]
+          max_versions = int(os.environ.get("MAX_VERSIONS_TO_KEEP") or 3)
+          max_age_days = int(os.environ.get("MAX_AGE_DAYS") or 7)
+          protected_raw = os.environ.get("PROTECTED_TAGS", "")
+          protected_tags = {tag.strip().lower() for tag in protected_raw.split(',') if tag.strip()}
+          
+          with open(response_path, 'r', encoding='utf-8') as handle:
+          try:
+          data = json.load(handle)
+          except json.JSONDecodeError:
+          print("Falha ao decodificar resposta do GHCR", file=sys.stderr)
+          json.dump({"delete": [], "summary": {"total": 0}}, open(plan_path, 'w', encoding='utf-8'))
+          sys.exit(0)
+          
+          if isinstance(data, dict):
+          versions = data.get("versions", [])
+          else:
+          versions = data
+          
+          versions = [v for v in versions if isinstance(v, dict)]
+          versions.sort(key=lambda v: (v.get("updated_at") or v.get("created_at") or ""), reverse=True)
+          
+          now = datetime.now(timezone.utc)
+          keep = []
+          eligible = []
+          
+          for idx, version in enumerate(versions):
+          metadata = (version.get("metadata") or {}).get("container") or {}
+          tags = [t for t in (metadata.get("tags") or []) if t]
+          tag_set = {t.lower() for t in tags}
+          updated_raw = version.get("updated_at") or version.get("created_at")
+          if updated_raw:
+          updated = datetime.fromisoformat(updated_raw.replace("Z", "+00:00"))
+          age_days = max(0, (now - updated).days)
+          else:
+          age_days = 0
+          info = {
+          "id": version.get("id"),
+          "name": version.get("name"),
+          "tags": tags,
+          "age_days": age_days,
+          "size_bytes": int((metadata.get("image_size") or 0)),
+          }
+          keep_slot = idx < max_versions
+          is_protected = bool(tag_set & protected_tags)
+          old_enough = age_days >= max_age_days
+          if keep_slot or is_protected or not old_enough:
+          keep.append(info)
+          else:
+          eligible.append(info)
+          
+          summary = {
+          "total": len(versions),
+          "kept": len(keep),
+          "eligible": len(eligible),
+          "max_versions_to_keep": max_versions,
+          "max_age_days": max_age_days,
+          "protected_tags": sorted(protected_tags),
+          "space_reclaimable": sum(item["size_bytes"] for item in eligible),
+          }
+          
+          with open(plan_path, 'w', encoding='utf-8') as handle:
+          json.dump({"delete": eligible, "summary": summary}, handle, indent=2)
+          
+          space_mb = summary["space_reclaimable"] / (1024 * 1024) if summary["space_reclaimable"] else 0
+          lines = [
+          f"Total de versões: {summary['total']}",
+          f"Mantidas (recentes ou protegidas): {summary['kept']}",
+          f"Elegíveis à remoção: {summary['eligible']} (idade ≥ {max_age_days}d, mantendo {max_versions} versões)",
+          f"Espaço potencial a liberar: {space_mb:.2f} MB",
+          ]
+          if eligible:
+          lines.append("Candidatas (limite 10):")
+          for item in eligible[:10]:
+          tags = ', '.join(item['tags']) if item['tags'] else '<untagged>'
+          size_mb_item = item['size_bytes'] / (1024 * 1024) if item['size_bytes'] else 0
+          lines.append(f"  - id={item['id']} | tags={tags} | idade={item['age_days']}d | tamanho≈{size_mb_item:.2f} MB")
+          
+          print('\n'.join(lines))
               PY
             )
 
@@ -616,13 +617,13 @@ jobs:
             fi
 
             mapfile -t targets < <(PLAN_FILE="$plan_file" python3 - <<'PY'
-              import json, os
-
-              plan = json.load(open(os.environ["PLAN_FILE"], encoding='utf-8'))
-              for item in plan.get("delete", []):
-                tags = ','.join(item.get("tags") or []) or '<untagged>'
-                size_bytes = item.get("size_bytes") or 0
-                print(f"{item['id']}|{item['age_days']}|{tags}|{size_bytes}")
+          import json, os
+          
+          plan = json.load(open(os.environ["PLAN_FILE"], encoding='utf-8'))
+          for item in plan.get("delete", []):
+          tags = ','.join(item.get("tags") or []) or '<untagged>'
+          size_bytes = item.get("size_bytes") or 0
+          print(f"{item['id']}|{item['age_days']}|{tags}|{size_bytes}")
             PY
             )
 
@@ -650,10 +651,10 @@ jobs:
 
             local reclaimed_mb
             reclaimed_mb=$(python3 - <<'PY'
-              import os
-
-              size = int(os.environ.get('RECLAIMED_BYTES', '0'))
-              print(f"{size/1024/1024:.2f}")
+          import os
+          
+          size = int(os.environ.get('RECLAIMED_BYTES', '0'))
+          print(f"{size/1024/1024:.2f}")
             PY
               RECLAIMED_BYTES="$reclaimed_bytes")
 
