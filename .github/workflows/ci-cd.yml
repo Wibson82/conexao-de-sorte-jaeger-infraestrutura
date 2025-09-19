@@ -10,8 +10,6 @@ on:
 permissions:
   contents: read
   id-token: write
-  packages: write
-  actions: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,8 +18,13 @@ concurrency:
 jobs:
   inventory-and-validate:
     name: "🔍 Inventário e validação"
-    runs-on: [ self-hosted, Linux, X64, conexao, conexao-de-sorte-jaeger-infraestrutura ]
+    runs-on: [ self-hosted, Linux, X64, srv649924, conexao-de-sorte-jaeger-infraestrutura ]
     timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+      actions: write
     outputs:
       cache_key: ${{ steps.cache_key.outputs.cache_key }}
       image_ref: ${{ steps.image_metadata.outputs.image_ref }}
@@ -208,8 +211,12 @@ PY
     name: "🚀 Deploy Jaeger"
     needs: inventory-and-validate
     if: github.ref == 'refs/heads/main'
-    runs-on: [ self-hosted, Linux, X64, conexao, conexao-de-sorte-jaeger-infraestrutura ]
+    runs-on: [ self-hosted, Linux, X64, srv649924, conexao-de-sorte-jaeger-infraestrutura ]
     timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
     env:
       DOCKER_NETWORK_NAME: conexao-network-swarm
       STACK_NAME: conexao-jaeger
@@ -466,8 +473,11 @@ PY
     name: "🧹 GHCR maintenance"
     needs: deploy-selfhosted
     if: github.ref == 'refs/heads/main'
-    runs-on: [ self-hosted, Linux, X64, conexao, conexao-de-sorte-jaeger-infraestrutura ]
+    runs-on: [ self-hosted, Linux, X64, srv649924, conexao-de-sorte-jaeger-infraestrutura ]
     timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: "🧹 Limpeza inteligente do GHCR"
         shell: bash
