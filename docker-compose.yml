@@ -20,8 +20,11 @@ services:
   # 📊 JAEGER - Distributed Tracing
   # ============================================================================
   jaeger:
-    image: ${JAEGER_IMAGE:-jaegertracing/all-in-one:1.60}
+    image: ${JAEGER_IMAGE:-ghcr.io/wibson82/jaeger-infrastructure:1.60}
     hostname: conexao-jaeger
+    user: "10001:10001"
+    init: true
+    stop_grace_period: 30s
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
       MEMORY_MAX_TRACES: 5000
@@ -54,6 +57,16 @@ services:
         delay: 30s
         max_attempts: 5
         window: 300s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 30s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        monitor: 30s
+        order: stop-first
       resources:
         limits:
           memory: 512M
