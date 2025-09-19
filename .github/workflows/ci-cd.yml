@@ -71,14 +71,14 @@ jobs:
             exit 1
           fi
           python3 - <<'PY'
-import importlib
-import sys
-try:
-    importlib.import_module('yaml')
-except ModuleNotFoundError:
-    import subprocess
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', 'PyYAML'])
-PY
+            import importlib
+            import sys
+            try:
+                importlib.import_module('yaml')
+            except ModuleNotFoundError:
+                import subprocess
+                subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', 'PyYAML'])
+          PY
 
       - name: Validate Docker Compose
         run: |
