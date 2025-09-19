@@ -1,33 +1,25 @@
 # Secrets Usage Map – Jaeger Infrastructure
 
-## Repository Variables (`vars`)
-- `AZURE_CLIENT_ID` – OIDC application identifier used by `azure/login@v2`.
-- `AZURE_TENANT_ID` – Azure AD tenant leveraged during OIDC auth.
-- `AZURE_SUBSCRIPTION_ID` – Subscription granted access to the Key Vault and resource group.
-- `AZURE_KEYVAULT_NAME` – Logical Key Vault name consumed when secrets are required.
-- `AZURE_KEYVAULT_ENDPOINT` – HTTPS endpoint for the same vault (kept for tooling compatibility).
-- `MAX_VERSIONS_TO_KEEP` – Upper bound for retained GHCR image versions (defaults to 3).
-- `MAX_AGE_DAYS` – Maximum age in days before an image becomes eligible for cleanup (defaults to 7).
-- `PROTECTED_TAGS` – Comma separated list of GHCR tags never deleted (defaults to `latest,main,production`).
-- `GHCR_CLEANUP_EXECUTE` – Controls dry-run versus execution for the cleanup helper (`true` executes deletions).
-
-> All entries above must live as GitHub repository variables. No application secret is stored in GitHub.
-
 ## GitHub Secrets
-- `GITHUB_TOKEN` – Default token with `packages:write` and `actions:write` permissions (auto-provided).
+- `AZURE_CLIENT_ID` – Identificador OIDC usado por `azure/login@v2`.
+- `AZURE_TENANT_ID` – Tenant Azure AD utilizado durante a autenticação.
+- `AZURE_SUBSCRIPTION_ID` – Assinatura com permissão de leitura no Key Vault e resource group.
+- `AZURE_KEYVAULT_NAME` – Nome lógico do Key Vault (permite futuras consultas seletivas).
+- `AZURE_KEYVAULT_ENDPOINT` *(opcional)* – Endpoint completo, caso tooling exija.
+- `GITHUB_TOKEN` – Token padrão do Actions (permite GHCR e API GitHub quando necessário).
 
-## Azure Key Vault Secrets
-- None required for the Jaeger deployment today. Keep the vault reference for future expansion but do not fetch secrets unless explicitly listed in a job.
+## Azure Key Vault
+- Nenhum segredo é consumido atualmente. Caso venha a ser necessário, documente aqui antes de habilitar no workflow.
 
-## Jobs × Secret Usage
-| Job | Purpose | Secrets/Variables Needed | Notes |
+## Jobs × Consumo de Segredos
+| Job | Propósito | Segredos usados | Observações |
 | --- | --- | --- | --- |
-| `inventory-and-validate` | Compose lint, Buildx build and artifact export | `AZURE_*` (OIDC), `GITHUB_TOKEN` | Key Vault is not queried; job documents that zero secrets are required.
-| `deploy-selfhosted` | Deploy stack on Hostinger Swarm and perform health checks | `AZURE_*` (OIDC), `GITHUB_TOKEN` | Key Vault step runs only when an explicit allowlist is populated; default is an empty list.
-| `ghcr-maintenance` | Prune stale GHCR images after deploy | `GITHUB_TOKEN`, `MAX_VERSIONS_TO_KEEP`, `MAX_AGE_DAYS`, `PROTECTED_TAGS`, `GHCR_CLEANUP_EXECUTE` | Operates via GitHub API; values come exclusively from repository variables.
+| `inventory-and-validate` | Validações, build e export de artefatos | `AZURE_*`, `GITHUB_TOKEN` | Apenas autentica via OIDC; não consulta Key Vault. |
+| `deploy-selfhosted` | Deploy Swarm no Hostinger e health checks | `AZURE_*`, `GITHUB_TOKEN` | Confirma lista vazia do Key Vault; sem busca de segredos. |
+| `ghcr-maintenance` | Limpeza opcional de imagens GHCR | `GITHUB_TOKEN` (+ `MAX_*`, `PROTECTED_TAGS` se configurados) | Executa via API GitHub; parâmetros podem ser definidos como variáveis se a limpeza for habilitada. |
 
-## Operational Notes
-- Extend the Key Vault allowlist only after documenting new secrets in this file.
-- When additional runners are introduced, update the checklist to include their labels and validation steps.
-- Mask any runtime values surfaced from Key Vault by emitting `::add-mask::` before writing to outputs.
-- Docker image padrão no Swarm: `ghcr.io/wibson82/jaeger-infrastructure` (rootless). Atualize `JAEGER_IMAGE` ao promover novas tags.
+## Observações Operacionais
+- Atualize este arquivo antes de incluir novos segredos ou variáveis no workflow.
+- Utilize `::add-mask::` sempre que manipular valores sensíveis (quando futuros segredos forem adicionados).
+- Parâmetros de limpeza de imagens (`MAX_VERSIONS_TO_KEEP`, etc.) podem ser adicionados como variáveis do repositório quando a rotina de GHCR estiver habilitada.
+- Imagem padrão utilizada no Swarm: `ghcr.io/wibson82/jaeger-infrastructure` (rootless).

@@ -39,16 +39,16 @@ jobs:
 
       - name: "🔐 Login Azure via OIDC"
         if: >-
-          ${{ vars.AZURE_CLIENT_ID != '' && vars.AZURE_TENANT_ID != '' &&
-              vars.AZURE_SUBSCRIPTION_ID != '' }}
+          ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' &&
+              secrets.AZURE_SUBSCRIPTION_ID != '' }}
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: "📋 Confirmar consumo mínimo do Key Vault"
-        if: vars.AZURE_KEYVAULT_NAME != ''
+        if: secrets.AZURE_KEYVAULT_NAME != ''
         run: |
           echo 'Deploy do Jaeger não consome segredos do Key Vault (lista vazia).'
 
@@ -56,7 +56,7 @@ jobs:
         shell: bash
         env:
           SERVICE_NAME: jaeger-infrastructure
-          KEYVAULT_NAME: ${{ vars.AZURE_KEYVAULT_NAME }}
+          KEYVAULT_NAME: ${{ secrets.AZURE_KEYVAULT_NAME }}
         run: |
           set -euo pipefail
           echo "Inventário verificado: serviço ${SERVICE_NAME} não requer segredos adicionais neste estágio."
@@ -227,16 +227,16 @@ jobs:
 
       - name: "🔐 Login Azure via OIDC"
         if: >-
-          ${{ vars.AZURE_CLIENT_ID != '' && vars.AZURE_TENANT_ID != '' &&
-              vars.AZURE_SUBSCRIPTION_ID != '' }}
+          ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' &&
+              secrets.AZURE_SUBSCRIPTION_ID != '' }}
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: "📋 Confirmar consumo mínimo do Key Vault"
-        if: vars.AZURE_KEYVAULT_NAME != ''
+        if: secrets.AZURE_KEYVAULT_NAME != ''
         run: |
           echo 'Deploy do Jaeger não consome segredos do Key Vault (lista vazia).'
 
