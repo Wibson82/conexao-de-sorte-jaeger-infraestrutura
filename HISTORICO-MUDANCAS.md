@@ -12,7 +12,7 @@
 
 ### 🛡️ **MELHORIAS DE SEGURANÇA**
 - Eliminação de credenciais estáticas (login GHCR com `GITHUB_TOKEN`).
-- Checklist de conformidade documentado (`docs/security/pipeline-checklist.md`).
+- Checklist de conformidade documentado (`docs/pipeline-checklist.md`).
 - Inventário de segredos atualizado com variáveis de limpeza opcionais.
 
 ### ⚡ **MELHORIAS DE PERFORMANCE & COSTO**
