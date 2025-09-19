@@ -38,9 +38,6 @@ jobs:
           clean: true
 
       - name: "🔐 Login Azure via OIDC"
-        if: >-
-          ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' &&
-              secrets.AZURE_SUBSCRIPTION_ID != '' }}
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -226,9 +223,6 @@ jobs:
           fetch-depth: 1
 
       - name: "🔐 Login Azure via OIDC"
-        if: >-
-          ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' &&
-              secrets.AZURE_SUBSCRIPTION_ID != '' }}
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
