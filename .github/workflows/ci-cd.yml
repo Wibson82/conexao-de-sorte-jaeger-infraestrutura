@@ -20,7 +20,7 @@ concurrency:
 jobs:
   inventory-and-validate:
     name: "🔍 Inventário e validação"
-    runs-on: [ self-hosted, Linux, X64, conexao, infra, conexao-de-sorte-jaeger-infraestrutura ]
+    runs-on: [ self-hosted, Linux, X64, conexao, conexao-de-sorte-jaeger-infraestrutura ]
     timeout-minutes: 15
     outputs:
       cache_key: ${{ steps.cache_key.outputs.cache_key }}
@@ -194,7 +194,7 @@ jobs:
     name: "🚀 Deploy Jaeger"
     needs: inventory-and-validate
     if: github.ref == 'refs/heads/main'
-    runs-on: [ self-hosted, Linux, X64, conexao, infra, conexao-de-sorte-jaeger-infraestrutura ]
+    runs-on: [ self-hosted, Linux, X64, conexao, conexao-de-sorte-jaeger-infraestrutura ]
     timeout-minutes: 15
     env:
       DOCKER_NETWORK_NAME: conexao-network-swarm
@@ -452,7 +452,7 @@ jobs:
     name: "🧹 GHCR maintenance"
     needs: deploy-selfhosted
     if: github.ref == 'refs/heads/main'
-    runs-on: [ self-hosted, Linux, X64, conexao, infra, conexao-de-sorte-jaeger-infraestrutura ]
+    runs-on: [ self-hosted, Linux, X64, conexao, conexao-de-sorte-jaeger-infraestrutura ]
     timeout-minutes: 10
     steps:
       - name: "🧹 Limpeza inteligente do GHCR"
