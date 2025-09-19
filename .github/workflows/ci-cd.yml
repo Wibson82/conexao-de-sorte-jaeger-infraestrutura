@@ -47,6 +47,11 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      - name: "📋 Confirmar consumo mínimo do Key Vault"
+        if: vars.AZURE_KEYVAULT_NAME != ''
+        run: |
+          echo 'Deploy do Jaeger não consome segredos do Key Vault (lista vazia).'
+
       - name: "📋 Validar inventário de segredos"
         shell: bash
         env:
@@ -239,35 +244,10 @@ PY
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: "🔑 Carregar segredos necessários do Key Vault"
+      - name: "📋 Confirmar consumo mínimo do Key Vault"
         if: vars.AZURE_KEYVAULT_NAME != ''
-        env:
-          KEYVAULT_NAME: ${{ vars.AZURE_KEYVAULT_NAME }}
-        shell: bash
         run: |
-          set -euo pipefail
-          required_secrets=()
-          if [[ "${#required_secrets[@]}" -eq 0 ]]; then
-            echo "Nenhum segredo do Key Vault é necessário para este deploy."
-            exit 0
-          fi
-
-          for secret in "${required_secrets[@]}"; do
-            value=$(az keyvault secret show --vault-name "$KEYVAULT_NAME" --name "$secret" --query value -o tsv)
-            file_path="$RUNNER_TEMP/$secret"
-            printf '%s' "$value" > "$file_path"
-            chmod 600 "$file_path"
-
-            case "$secret" in
-              swarm-admin-ssh-key)
-                echo "SWARM_ADMIN_SSH_KEY_PATH=$file_path" >> "$GITHUB_ENV"
-                ;;
-              *)
-                masked_var=$(echo "$secret" | tr '[:lower:]-' '[:upper:]_')
-                echo "${masked_var}_PATH=$file_path" >> "$GITHUB_ENV"
-                ;;
-            esac
-          done
+          echo 'Deploy do Jaeger não consome segredos do Key Vault (lista vazia).'
 
       - name: "🔑 Login GHCR"
         uses: docker/login-action@v3
