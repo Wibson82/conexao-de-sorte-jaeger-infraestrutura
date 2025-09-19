@@ -1,62 +1,56 @@
 # 📊 Conexão de Sorte - Jaeger Infrastructure
 
-Infraestrutura Jaeger standalone para Distributed Tracing com Docker Swarm.
+Stack Jaeger standalone operada em Docker Swarm para observabilidade da Conexão de Sorte.
 
-## 📋 **Características**
+## 📋 Características Principais
+- Deploy Swarm com rede overlay dedicada (`conexao-network-swarm`).
+- Imagem endurecida `ghcr.io/wibson82/jaeger-infrastructure` (rootless, healthcheck embutido).
+- Parametrização via `JAEGER_IMAGE` e runner self-hosted em Hostinger (`srv649924`).
+- Health checks multi-método (logs, portas, curl) e limpeza pós-deploy.
+- Pipeline GitHub Actions com OIDC Azure e consumo zero de segredos de aplicação.
 
-- ✅ **Docker Swarm** deployment
-- ✅ **All-in-one** Jaeger deployment
-- ✅ **Overlay encrypted network** para segurança
-- ✅ **Health checks** otimizados para produção
-- ✅ **Workflows CI/CD** baseados no padrão Traefik
-- ✅ **Zipkin compatibility** endpoint
-
-## 🚀 **Deployment**
-
+## 🚀 Como Deployar
 ```bash
-# Deploy automático via GitHub Actions
+# Deploy automático (CI/CD)
 git push origin main
 
-# Deploy manual
+# Deploy manual via runner
+export JAEGER_IMAGE=ghcr.io/wibson82/jaeger-infrastructure:latest
 docker stack deploy -c docker-compose.yml conexao-jaeger
 ```
 
-## 🔍 **Health Check**
-
+## 🔍 Health Check Manual
 ```bash
-# Verificar se Jaeger UI responde
-docker exec CONTAINER_ID wget --quiet --tries=1 --timeout=5 --spider http://localhost:16686
+# Validar Jaeger UI localmente (porta 16686)
+curl -fsS http://localhost:16686/ >/dev/null
 ```
 
-## 📊 **Acesso**
+## 📈 Portas Expostas
+- Jaeger UI: `16686`
+- Collector HTTP: `14268`
+- Collector gRPC: `14269`
+- Zipkin compatível: `9411`
 
-- **Jaeger UI**: http://localhost:16686
-- **Zipkin Endpoint**: http://localhost:9411
-- **Collector HTTP**: http://localhost:14268
-- **Collector gRPC**: http://localhost:14269
+## 🛡️ CI/CD & Segurança
+- Runner obrigatório: `[self-hosted, Linux, X64, srv649924, conexao-de-sorte-jaeger-infraestrutura]`.
+- Permissões globais: `contents: read`, `id-token: write`; jobs elevam apenas `packages`/`actions` quando necessário.
+- Azure Key Vault não é consumido neste serviço; inventário documentado em `docs/secrets-usage-map.md`.
+- `actionlint` utiliza configuração dedicada em `.github/actionlint.yaml` para labels customizados.
 
-## 📈 **Monitoramento**
+## ✅ Validações Locais
+```bash
+# Lint dos workflows (sem shellcheck por heredocs complexos)
+actionlint -config-file .github/actionlint.yaml --shellcheck=
 
-- **Network**: conexao-network-swarm
-- **Memory Limit**: 512M
-- **Max Traces**: 5000
+# Validar sintaxe do compose
+docker compose -f docker-compose.yml config -q
+```
+> `hadolint` e `docker build` não foram executados localmente – ferramentas/daemon indisponíveis no ambiente atual.
 
-## ⚙️ **Configuração**
+## 🔐 Pipeline Hardened
+- Buildx multi-stage gera imagem rootless com labels OCI e healthcheck.
+- Azure OIDC configurado com `azure/login@v2`; nenhum segredo de aplicação reside no GitHub.
+- Deploy Swarm executado via runner self-hosted com validações e limpeza controlada.
+- Manutenção automática do GHCR (`MAX_VERSIONS_TO_KEEP`, `MAX_AGE_DAYS`, `PROTECTED_TAGS`, `GHCR_CLEANUP_EXECUTE`).
 
-- **COLLECTOR_OTLP_ENABLED**: true
-- **MEMORY_MAX_TRACES**: 5000
-- **QUERY_BASE_PATH**: /jaeger
-
----
-
-**Data**: 18/09/2025 às 20:10 BRT
-**Versão**: 1.1.0
-
-## 🔐 **Pipeline Hardened**
-
-- Builda imagem customizada `ghcr.io/wibson82/jaeger-infrastructure` com cache multi-nível (Buildx + GHA) e labels OCI.
-- Autenticação federada com Azure (OIDC) para acesso seletivo ao Key Vault; nenhum segredo de aplicação permanece no GitHub.
-- Deploy em runner `self-hosted` de infraestrutura com health checks avançados e limpeza pós-deploy (artefatos, containers e imagens antigas).
-- Manutenção automática do GHCR com política de idade (`MAX_AGE_DAYS`), retenção de versões (`MAX_VERSIONS_TO_KEEP`) e tags protegidas (`PROTECTED_TAGS`).
-- Artefatos temporários com retenção de 1 dia e remoção automática via GitHub API usando `github.run_id`.
-
+**Versão:** 1.2.0 — Atualizado em 19/09/2025.

@@ -1,5 +1,19 @@
 # 📋 HISTÓRICO DE MUDANÇAS - JAEGER INFRAESTRUTURA
 
+## 🗓️ **19/09/2025 - Auditoria Hostinger + hardening rootless**
+
+### ✅ **MUDANÇAS REALIZADAS**
+- Dockerfile convertido para multi-stage com usuário não-root (UID 10001) e healthcheck nativo.
+- Compose padrão agora referencia `ghcr.io/wibson82/jaeger-infrastructure` e adiciona `update_config`/`rollback_config`.
+- Workflows ajustados para permissões mínimas e labels `[self-hosted, Linux, X64, srv649924, conexao-de-sorte-jaeger-infraestrutura]`.
+- `.github/actionlint.yaml` criado para validar workflows com labels customizados.
+
+### 🧪 **VALIDAÇÕES**
+- `actionlint -config-file .github/actionlint.yaml --shellcheck=`
+- `docker compose -f docker-compose.yml config -q`
+- `docker build` bloqueado (daemon inacessível).
+
+---
 ## 🗓️ **18/09/2025 - Harden CI/CD (OIDC + GHCR + Cache)**
 
 ### ✅ **MUDANÇAS REALIZADAS**

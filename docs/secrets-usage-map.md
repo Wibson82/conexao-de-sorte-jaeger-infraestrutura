@@ -30,3 +30,4 @@
 - Extend the Key Vault allowlist only after documenting new secrets in this file.
 - When additional runners are introduced, update the checklist to include their labels and validation steps.
 - Mask any runtime values surfaced from Key Vault by emitting `::add-mask::` before writing to outputs.
+- Docker image padrão no Swarm: `ghcr.io/wibson82/jaeger-infrastructure` (rootless). Atualize `JAEGER_IMAGE` ao promover novas tags.

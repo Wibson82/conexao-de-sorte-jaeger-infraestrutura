@@ -1,6 +1,7 @@
 ## ✅ Checklist de Conformidade – Pipeline Jaeger Infrastructure
 
 - [x] Permissões globais reduzidas (`contents: read`, `id-token: write`) com elevação apenas nos jobs que precisam de `packages`/`actions`.
+- [x] `actionlint` validado com `.github/actionlint.yaml` (labels customizados).
 - [x] OIDC Azure configurado com `azure/login@v2` e permissões mínimas (`id-token: write`).
 - [x] Identificadores AZURE_* + variáveis de limpeza definidos como **Repository Variables** (sem segredos no GitHub).
 - [x] Build da imagem GHCR `jaeger-infrastructure` com cache multi-nível (GHA + local) e labels OCI.
