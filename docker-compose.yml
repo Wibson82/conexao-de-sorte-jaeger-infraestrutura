@@ -20,7 +20,7 @@ services:
   # 📊 JAEGER - Distributed Tracing
   # ============================================================================
   jaeger:
-    image: ${JAEGER_IMAGE:-ghcr.io/wibson82/jaeger-infrastructure:1.60}
+    image: ${JAEGER_IMAGE:-jaegertracing/jaeger:2.1.0}
     hostname: conexao-jaeger
     user: "10001:10001"
     init: true
