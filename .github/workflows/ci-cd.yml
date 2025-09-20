@@ -129,7 +129,7 @@ jobs:
 
   deploy-selfhosted:
     needs: validate-and-build
-    runs-on: [self-hosted, Linux, X64, srv649924, conexao-de-sorte-jaeger-infraestrutura]
+    runs-on: [self-hosted, Linux, X64, srv649924, conexao, conexao-de-sorte-jaeger-infraestrutura]
     timeout-minutes: 15
     if: github.ref == 'refs/heads/main'
     permissions:
