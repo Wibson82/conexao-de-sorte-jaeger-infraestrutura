@@ -1,4 +1,4 @@
-name: "📊 Jaeger Infrastructure – CI/CD Pipeline"
+name: "📊 Jaeger Infrastructure - CI/CD Pipeline"
 
 on:
   push:
