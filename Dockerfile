@@ -24,7 +24,7 @@ RUN set -eux; \
 USER 10001:10001
 WORKDIR /var/lib/jaeger
 
-EXPOSE 16686 14268 14269 9411
+
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=200s --retries=5 \
   CMD curl -fsS http://127.0.0.1:16686/ || exit 1
