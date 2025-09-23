@@ -31,16 +31,23 @@ services:
       JAEGER_DISABLED: "false"
       COLLECTOR_ZIPKIN_HOST_PORT: ":9411"
       QUERY_BASE_PATH: "/jaeger"
+      # Security Configuration
+      JAEGER_ADMIN_PASSWORD_FILE: "/run/secrets/JAEGER_ADMIN_PASSWORD"
+      JAEGER_UI_CONFIG_FILE: "/run/secrets/JAEGER_UI_CONFIG"
+    secrets:
+      - JAEGER_ADMIN_PASSWORD
+      - JAEGER_UI_CONFIG
     networks:
       conexao-network-swarm:
         aliases:
           - conexao-jaeger
           - jaeger
-    ports:
-      - "16686:16686"  # Jaeger UI
-      - "14268:14268"  # Jaeger Collector HTTP
-      - "14269:14269"  # Jaeger Collector gRPC
-      - "9411:9411"    # Zipkin compatible endpoint
+    # 🚨 SECURITY: Portas removidas - acesso apenas via Traefik
+    # ports:
+    #   - "16686:16686"  # Jaeger UI - REMOVIDO: usar Traefik
+    #   - "14268:14268"  # Jaeger Collector HTTP - REMOVIDO: interno apenas
+    #   - "14269:14269"  # Jaeger Collector gRPC - REMOVIDO: interno apenas
+    #   - "9411:9411"    # Zipkin compatible endpoint - REMOVIDO: interno apenas
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:16686/"]
       interval: 30s
@@ -72,6 +79,59 @@ services:
           memory: 512M
         reservations:
           memory: 256M
+
+    # ==========================================================================
+    # 🏷️ TRAEFIK LABELS - JAEGER UI VIA TRAEFIK
+    # ==========================================================================
+    labels:
+      # Habilitar Traefik para este serviço
+      - "traefik.enable=true"
+      - "traefik.docker.network=conexao-network-swarm"
+
+      # Configuração do serviço Jaeger UI
+      - "traefik.http.services.jaeger-ui.loadbalancer.server.port=16686"
+      - "traefik.http.services.jaeger-ui.loadbalancer.healthcheck.path=/"
+      - "traefik.http.services.jaeger-ui.loadbalancer.healthcheck.interval=30s"
+
+      # Roteamento do Jaeger UI (acesso restrito)
+      - "traefik.http.routers.jaeger-ui.rule=Host(`monitoring.conexaodesorte.com.br`) && PathPrefix(`/jaeger`)"
+      - "traefik.http.routers.jaeger-ui.entrypoints=websecure"
+      - "traefik.http.routers.jaeger-ui.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.jaeger-ui.service=jaeger-ui"
+      - "traefik.http.routers.jaeger-ui.middlewares=jaeger-auth,jaeger-stripprefix"
+
+      # Middleware de autenticação básica
+      - "traefik.http.middlewares.jaeger-auth.basicauth.usersfile=/run/secrets/JAEGER_HTPASSWD"
+
+      # Middleware para remover prefixo /jaeger
+      - "traefik.http.middlewares.jaeger-stripprefix.stripprefix.prefixes=/jaeger"
+
+      # Configuração do serviço Jaeger Collector (interno)
+      - "traefik.http.services.jaeger-collector.loadbalancer.server.port=14268"
+      - "traefik.http.routers.jaeger-collector.rule=Host(`jaeger-collector.conexaodesorte.internal`)"
+      - "traefik.http.routers.jaeger-collector.service=jaeger-collector"
+      - "traefik.http.routers.jaeger-collector.entrypoints=web"
+
+      # Metadata do serviço
+      - "org.opencontainers.image.title=Conexão de Sorte - Jaeger Tracing"
+      - "org.opencontainers.image.description=Distributed tracing e observabilidade"
+      - "org.opencontainers.image.version=2.1.0"
+      - "microservice.type=observability"
+      - "microservice.category=monitoring"
+
+# ============================================================================
+# 🔐 SECRETS EXTERNOS (Azure Key Vault)
+# ============================================================================
+secrets:
+  JAEGER_ADMIN_PASSWORD:
+    external: true
+    name: JAEGER_ADMIN_PASSWORD
+  JAEGER_UI_CONFIG:
+    external: true
+    name: JAEGER_UI_CONFIG
+  JAEGER_HTPASSWD:
+    external: true
+    name: JAEGER_HTPASSWD
 
 # ============================================================================
 # 🌐 NETWORKS EXTERNOS
