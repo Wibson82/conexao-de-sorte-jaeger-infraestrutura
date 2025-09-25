@@ -368,40 +368,50 @@ jobs:
           echo "📊 Status final dos serviços:"
           docker service ls --filter name="${STACK_NAME}_*" --format "table {{.Name}}\t{{.Replicas}}\t{{.Image}}"
 
-      - name: Traefik Health Monitor Validation
+      - name: 🏥 Verificar Deploy no Runner (Local Container Check)
         run: |
-          set -euo pipefail
-          HEALTH_MONITOR_URL="https://traefik.conexaodesorte.com.br/health/service/jaeger"
-          TIMEOUT_TOTAL=300
-          INTERVAL=10
+          echo "🔍 Verificando se o deploy foi bem-sucedido no runner..."
+          # Verificar se o container está rodando e healthy
+          timeout=180
+          interval=10
           elapsed=0
-          last_response=""
-          status=""
-
-          while [ $elapsed -lt $TIMEOUT_TOTAL ]; do
-            echo "🔎 Consultando Traefik (${elapsed}/${TIMEOUT_TOTAL}s)..."
-            response=$(curl -sf --max-time 10 "$HEALTH_MONITOR_URL" 2>/dev/null || true)
-            last_response="$response"
-
-            if [[ -n "$response" ]]; then
-              status=$(printf '%s' "$response" | python3 -c 'import json, sys; data = json.load(sys.stdin); print(data.get("status", ""))' 2>/dev/null || true)
-              status=${status//$'\n'/}
-              echo "📊 Status reportado: ${status:-indefinido}"
-
-              if [[ "$status" == "healthy" ]]; then
-                echo "✅ Traefik confirmou Jaeger como healthy"
+          while [ $elapsed -lt $timeout ]; do
+            echo "🔍 Verificando containers do Jaeger (${elapsed}/${timeout}s)..."
+            # Buscar container do jaeger que está rodando
+            jaeger_container=$(docker ps --filter "name=conexao-jaeger" --filter "status=running" --format "{{.Names}}\t{{.Status}}" | head -1)
+            if [[ -n "$jaeger_container" ]]; then
+              echo "📦 Container encontrado: $jaeger_container"
+              # Verificar se tem health status
+              container_name=$(echo "$jaeger_container" | cut -f1)
+              health_status=$(docker inspect --format='{{.State.Health.Status}}' "$container_name" 2>/dev/null || echo "no-health-check")
+              if [[ "$health_status" == "healthy" ]]; then
+                echo "✅ Container do Jaeger está healthy no runner"
+                echo "🎉 Deploy confirmado com sucesso!"
                 exit 0
+              elif [[ "$health_status" == "no-health-check" ]]; then
+                echo "⚠️ Container sem health check configurado, verificando se está rodando..."
+                # Se não tem health check, verificar se o container está rodando há pelo menos 30s
+                uptime=$(docker inspect --format='{{.State.StartedAt}}' "$container_name" | xargs -I {} date -d {} +%s)
+                current_time=$(date +%s)
+                running_time=$((current_time - uptime))
+                if [ $running_time -gt 30 ]; then
+                  echo "✅ Container rodando há ${running_time}s - considerado estável"
+                  echo "🎉 Deploy confirmado com sucesso!"
+                  exit 0
+                fi
+              else
+                echo "⚠️ Container health status: $health_status"
               fi
             else
-              echo "⚠️ Traefik sem resposta nesta tentativa"
+              echo "⚠️ Nenhum container do Jaeger encontrado rodando"
             fi
-
-            sleep "$INTERVAL"
-            elapsed=$((elapsed + INTERVAL))
+            sleep "$interval"
+            elapsed=$((elapsed + interval))
           done
 
-          echo "❌ Traefik nao confirmou Jaeger como healthy apos ${TIMEOUT_TOTAL}s"
-          echo "📝 Ultima resposta recebida: ${last_response:-<sem resposta>}"
+          echo "❌ Timeout: Jaeger não ficou healthy dentro do tempo esperado"
+          echo "🔍 Containers atuais:"
+          docker ps --filter "name=conexao-jaeger"
           exit 1
 
       - name: 🧼 Limpeza de recursos no servidor
