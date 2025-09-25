@@ -31,12 +31,8 @@ services:
       JAEGER_DISABLED: "false"
       COLLECTOR_ZIPKIN_HOST_PORT: ":9411"
       QUERY_BASE_PATH: "/jaeger"
-      # Security Configuration
-      JAEGER_ADMIN_PASSWORD_FILE: "/run/secrets/JAEGER_ADMIN_PASSWORD"
-      JAEGER_UI_CONFIG_FILE: "/run/secrets/JAEGER_UI_CONFIG"
-    secrets:
-      - JAEGER_ADMIN_PASSWORD
-      - JAEGER_UI_CONFIG
+      # Configuração simplificada para desenvolvimento
+      JAEGER_LOG_LEVEL: "info"
     networks:
       conexao-network-swarm:
         aliases:
@@ -98,10 +94,10 @@ services:
       - "traefik.http.routers.jaeger-ui.entrypoints=websecure"
       - "traefik.http.routers.jaeger-ui.tls.certresolver=letsencrypt"
       - "traefik.http.routers.jaeger-ui.service=jaeger-ui"
-      - "traefik.http.routers.jaeger-ui.middlewares=jaeger-auth,jaeger-stripprefix"
+      - "traefik.http.routers.jaeger-ui.middlewares=jaeger-stripprefix"
 
-      # Middleware de autenticação básica
-      - "traefik.http.middlewares.jaeger-auth.basicauth.usersfile=/run/secrets/JAEGER_HTPASSWD"
+      # Acesso simplificado para desenvolvimento (sem autenticação)
+      # - "traefik.http.middlewares.jaeger-auth.basicauth.usersfile=/run/secrets/JAEGER_HTPASSWD"
 
       # Middleware para remover prefixo /jaeger
       - "traefik.http.middlewares.jaeger-stripprefix.stripprefix.prefixes=/jaeger"
@@ -120,18 +116,9 @@ services:
       - "microservice.category=monitoring"
 
 # ============================================================================
-# 🔐 SECRETS EXTERNOS (Azure Key Vault)
+# 🔐 CONFIGURAÇÃO SIMPLIFICADA PARA DESENVOLVIMENTO
 # ============================================================================
-secrets:
-  JAEGER_ADMIN_PASSWORD:
-    external: true
-    name: JAEGER_ADMIN_PASSWORD
-  JAEGER_UI_CONFIG:
-    external: true
-    name: JAEGER_UI_CONFIG
-  JAEGER_HTPASSWD:
-    external: true
-    name: JAEGER_HTPASSWD
+# Secrets de autenticação removidos para compatibilidade com ambiente de desenvolvimento
 
 # ============================================================================
 # 🌐 NETWORKS EXTERNOS
